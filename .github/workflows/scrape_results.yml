@@ -19,7 +19,7 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-scraper.txt
 
       - name: Download DB from S3
         env:
@@ -32,6 +32,8 @@ jobs:
             || echo "No existing DB — starting fresh"
 
       - name: Run scraper (yesterday's games — this job runs at 6 AM UTC = 11 PM PDT prev day)
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           YESTERDAY=$(date -d "yesterday" '+%Y-%m-%d')
           python -m src.prizepicks.scrape_results --date "$YESTERDAY"

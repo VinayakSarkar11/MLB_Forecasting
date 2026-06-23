@@ -19,7 +19,7 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-scraper.txt
 
       - name: Download DB from S3 (if exists)
         env:
@@ -32,6 +32,8 @@ jobs:
             || echo "No existing DB — starting fresh"
 
       - name: Run scraper
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: python -m src.prizepicks.scrape_lines
 
       - name: Upload DB to S3
