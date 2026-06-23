@@ -1,0 +1,46 @@
+name: Scrape MLB Results
+
+on:
+  schedule:
+    # 11:00 PM PDT = 06:00 UTC next day (baseball season runs on PDT, UTC-7)
+    - cron: '0 6 * * *'
+  workflow_dispatch:   # allow manual trigger from GitHub UI
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download DB from S3
+        env:
+          AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION:    us-east-1
+        run: |
+          mkdir -p data
+          aws s3 cp s3://statcast-surge-raw-data-vs/prizepicks/prizepicks_history.db data/prizepicks_history.db \
+            || echo "No existing DB — starting fresh"
+
+      - name: Run scraper (yesterday's games — this job runs at 6 AM UTC = 11 PM PDT prev day)
+        run: |
+          YESTERDAY=$(date -d "yesterday" '+%Y-%m-%d')
+          python -m src.prizepicks.scrape_results --date "$YESTERDAY"
+
+      - name: Upload DB to S3
+        env:
+          AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION:    us-east-1
+        run: |
+          aws s3 cp data/prizepicks_history.db \
+            s3://statcast-surge-raw-data-vs/prizepicks/prizepicks_history.db
