@@ -1,6 +1,7 @@
 """Evening scraper: fetch MLB box scores and store actual batter stat counts.
 
-Run after all games are complete — midnight ET is safe for West Coast games.
+Run after all games are complete — 11 PM PT or later is safe for West Coast games.
+Default date uses Pacific time so the correct game date is used when run past midnight UTC.
 
     python -m src.prizepicks.scrape_results
     python -m src.prizepicks.scrape_results --date 2026-06-22
@@ -12,6 +13,7 @@ rows are replaced via the UNIQUE constraint on (game_date, game_pk, player_name)
 import argparse
 import time
 from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -80,7 +82,7 @@ def scrape_and_store(game_date: date | None = None) -> int:
     Returns number of player-game rows stored.
     """
     init_db()
-    game_date  = game_date or date.today()
+    game_date  = game_date or datetime.now(ZoneInfo("America/Los_Angeles")).date()
     fetched_at = datetime.now(timezone.utc).isoformat()
 
     print(f"[{fetched_at[:19]}] Fetching MLB box scores for {game_date}...")
