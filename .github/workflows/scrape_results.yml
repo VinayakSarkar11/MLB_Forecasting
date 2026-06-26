@@ -25,11 +25,22 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION:    us-east-1
         run: |
           mkdir -p data
-          aws s3 cp s3://statcast-surge-raw-data-vs/prizepicks/prizepicks_history.db data/prizepicks_history.db \
-            || echo "No existing DB — starting fresh"
+          python - <<'PYEOF'
+          import boto3, os, sys
+          from pathlib import Path
+          s3 = boto3.client('s3',
+              aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+              aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
+              region_name='us-east-1',
+          )
+          try:
+              s3.download_file('statcast-surge-raw-data-vs', 'prizepicks/prizepicks_history.db', 'data/prizepicks_history.db')
+              print('DB downloaded from S3.')
+          except Exception as e:
+              print(f'No existing DB or download failed: {e}')
+          PYEOF
 
       - name: Run scraper (yesterday's games — this job runs at 6 AM UTC = 11 PM PDT prev day)
         env:
@@ -42,7 +53,19 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION:    us-east-1
         run: |
-          aws s3 cp data/prizepicks_history.db \
-            s3://statcast-surge-raw-data-vs/prizepicks/prizepicks_history.db
+          python - <<'PYEOF'
+          import boto3, os, sys
+          from pathlib import Path
+          db = Path('data/prizepicks_history.db')
+          if not db.exists():
+              print('ERROR: DB file not found at data/prizepicks_history.db')
+              sys.exit(1)
+          s3 = boto3.client('s3',
+              aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+              aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
+              region_name='us-east-1',
+          )
+          s3.upload_file(str(db), 'statcast-surge-raw-data-vs', 'prizepicks/prizepicks_history.db')
+          print(f'DB uploaded to S3 ({db.stat().st_size:,} bytes).')
+          PYEOF
